@@ -2,7 +2,7 @@ import React, { Component } from "react";
 import PropTypes from "prop-types";
 import throttle from "lodash.throttle";
 
-function registerListener(event, fn) {
+function registerListener(window, event, fn) {
   if (window.addEventListener) {
     window.addEventListener(event, fn);
   } else {
@@ -10,13 +10,13 @@ function registerListener(event, fn) {
   }
 }
 
-function isInViewport(el) {
+function isInViewport(window, el) {
   const rect = el.getBoundingClientRect();
   return (
     rect.top >= 0 &&
     rect.left >= 0 &&
-    rect.top <= (window.innerHeight || document.documentElement.clientHeight) &&
-    rect.left <= (window.innerWidth || document.documentElement.clientWidth)
+    rect.top <= (window.innerHeight || window.document.documentElement.clientHeight) &&
+    rect.left <= (window.innerWidth || window.document.documentElement.clientWidth)
   );
 }
 
@@ -28,17 +28,17 @@ const fadeIn = `
   }
 `;
 
-const IS_SVG_SUPPORTED = document.implementation.hasFeature(
-  "http://www.w3.org/TR/SVG11/feature#Image",
-  "1.1"
-);
+function isSvgSupported(window) {
+  return window.document.implementation.hasFeature("http://www.w3.org/TR/SVG11/feature#Image", "1.1");
+}
 
 class GracefulImage extends Component {
   constructor(props) {
     super(props);
     let placeholder = null;
+    this.window = this.props.window;
 
-    if (IS_SVG_SUPPORTED) {
+    if (isSvgSupported(this.window)) {
       const width =
         this.props.style && this.props.style.width
           ? this.props.style.width
@@ -69,12 +69,12 @@ class GracefulImage extends Component {
     Creating a stylesheet to hold the fading animation
   */
   addAnimationStyles() {
-    const exists = document.head.querySelectorAll("[data-gracefulimage]");
+    const exists = this.window.document.head.querySelectorAll("[data-gracefulimage]");
 
     if (!exists.length) {
-      const styleElement = document.createElement("style");
+      const styleElement = this.window.document.createElement("style");
       styleElement.setAttribute("data-gracefulimage", "exists");
-      document.head.appendChild(styleElement);
+      this.window.document.head.appendChild(styleElement);
       styleElement.sheet.insertRule(fadeIn, styleElement.sheet.cssRules.length);
     }
   }
@@ -98,7 +98,7 @@ class GracefulImage extends Component {
     and remove all event listeners associated with it
   */
   lazyLoad = () => {
-    if (isInViewport(this.placeholderImage)) {
+    if (isInViewport(this.window, this.placeholderImage)) {
       this.clearEventListeners();
       this.loadImage();
     }
@@ -112,15 +112,15 @@ class GracefulImage extends Component {
     this.addAnimationStyles();
 
     // if user wants to lazy load
-    if (!this.props.noLazyLoad && IS_SVG_SUPPORTED) {
+    if (!this.props.noLazyLoad && isSvgSupported(this.window)) {
       // check if already within viewport to avoid attaching listeners
-      if (isInViewport(this.placeholderImage)) {
+      if (isInViewport(this.window, this.placeholderImage)) {
         this.loadImage();
       } else {
-        registerListener("load", this.throttledFunction);
-        registerListener("scroll", this.throttledFunction);
-        registerListener("resize", this.throttledFunction);
-        registerListener("gestureend", this.throttledFunction); // to detect pinch on mobile devices
+        registerListener(this.window, "load", this.throttledFunction);
+        registerListener(this.window, "scroll", this.throttledFunction);
+        registerListener(this.window, "resize", this.throttledFunction);
+        registerListener(this.window, "gestureend", this.throttledFunction); // to detect pinch on mobile devices
       }
     } else {
       this.loadImage();
@@ -128,10 +128,10 @@ class GracefulImage extends Component {
   }
 
   clearEventListeners() {
-    window.removeEventListener("load", this.throttledFunction);
-    window.removeEventListener("scroll", this.throttledFunction);
-    window.removeEventListener("resize", this.throttledFunction);
-    window.removeEventListener("gestureend", this.throttledFunction);
+    this.window.removeEventListener("load", this.throttledFunction);
+    this.window.removeEventListener("scroll", this.throttledFunction);
+    this.window.removeEventListener("resize", this.throttledFunction);
+    this.window.removeEventListener("gestureend", this.throttledFunction);
   }
 
   /*
@@ -185,7 +185,7 @@ class GracefulImage extends Component {
     - Else render the placeholder
   */
   render() {
-    if (!this.state.loaded && (this.props.noPlaceholder || !IS_SVG_SUPPORTED))
+    if (!this.state.loaded && (this.props.noPlaceholder || !isSvgSupported(this.window)))
       return null;
 
     const src = this.state.loaded ? this.props.src : this.state.placeholder;
